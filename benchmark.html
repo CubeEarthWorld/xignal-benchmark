@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ベンチマーク比較作成</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --gradient-primary: linear-gradient(135deg, #667eea, #764ba2);
+            --gradient-success: linear-gradient(135deg, #56ab2f, #a8e6cf);
+            --gradient-danger: linear-gradient(135deg, #ff416c, #ff4b2b);
+            --gradient-info: linear-gradient(135deg, #4facfe, #00f2fe);
+            --gradient-warning: linear-gradient(135deg, #ffd89b, #19547b);
+            --bg-card: rgba(255, 255, 255, 0.05);
+            --bg-card-hover: rgba(255, 255, 255, 0.08);
+            --bg-input: rgba(0, 0, 0, 0.3);
+            --bg-input-focus: rgba(0, 0, 0, 0.5);
+            --border-light: rgba(255, 255, 255, 0.1);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.8);
+            --text-muted: rgba(255, 255, 255, 0.5);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at center, #2a5298, #1e3c72);
+            height: 100vh;
+            color: white;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .main-container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .chart-section {
+            flex: 1;
+            padding: 30px;
+            transition: all 0.3s ease;
+            overflow-y: auto;
+            height: 100vh;
+            position: relative;
+        }
+
+        .controls-section {
+            width: 450px;
+            background: linear-gradient(135deg, rgba(30, 30, 30, 0.95), rgba(15, 15, 15, 0.95));
+            backdrop-filter: blur(20px);
+            border-left: 1px solid var(--border-light);
+            overflow-y: auto;
+            height: 100vh;
+            transition: all 0.3s ease;
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .controls-section.hidden {
+            width: 0;
+            opacity: 0;
+            overflow: hidden;
+        }
+
+        .controls { padding: 20px; }
+
+        .controls-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border-light);
+        }
+
+        .controls-header h2 {
+            font-size: 22px;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .toggle-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            background: var(--bg-card);
+            padding: 5px;
+            border-radius: 12px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px 15px;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.6);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            font-size: 13px;
+        }
+
+        .tab:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-secondary);
+        }
+
+        .tab.active {
+            background: var(--gradient-primary);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Chart */
+        .chart-container {
+            background: linear-gradient(135deg, #2c2c2c, #1a1a1a);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            position: relative;
+            max-width: 100%;
+            margin-top: 50px;
+        }
+
+        .chart-title, .chart-subtitle {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .chart-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        .chart-subtitle {
+            font-size: 18px;
+            margin-bottom: 30px;
+            color: #cccccc;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .chart {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: relative;
+        }
+
+        .chart-background {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .grid-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            border-left: 1px dashed rgba(255, 255, 255, 0.3);
+        }
+
+        .grid-label {
+            position: absolute;
+            bottom: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .chart-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .chart-label {
+            width: 120px;
+            text-align: right;
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+            flex-shrink: 0;
+        }
+
+        .chart-bars {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            position: relative;
+            border-left: 2px solid var(--text-secondary);
+            padding-left: 10px;
+        }
+
+        .chart-bar {
+            height: 35px;
+            border-radius: 8px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .chart-bar:hover {
+            transform: scaleX(1.02);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .bar-value, .percent-indicator {
+            position: absolute;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .bar-value {
+            right: 10px;
+            font-size: 14px;
+        }
+
+        .percent-indicator {
+            left: 10px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .ratio-indicator {
+            position: absolute;
+            right: -45px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #3a3a3a;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            border: 1px solid #555;
+        }
+
+        /* Scale Mode */
+        .scale-mode-selector {
+            display: flex;
+            background: var(--bg-input);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+
+        .scale-mode-btn {
+            flex: 1;
+            padding: 12px;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.7);
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .scale-mode-btn:hover {
+            background: var(--bg-card);
+            color: var(--text-secondary);
+        }
+
+        .scale-mode-btn.active {
+            background: var(--gradient-primary);
+            color: white;
+        }
+
+        /* Cards & Forms */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            padding: 18px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+        }
+
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: rgba(255, 255, 255, 0.9);
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .input-group {
+            margin-bottom: 12px;
+        }
+
+        .input-group:last-child { margin-bottom: 0; }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            background: var(--bg-input);
+            color: white;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            background: var(--bg-input-focus);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+
+        /* Color Picker */
+        .color-picker-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .color-picker-wrapper { flex: 1; }
+
+        .color-display {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: var(--bg-input);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .color-display:hover { background: var(--bg-input-focus); }
+
+        .color-preview {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .color-value {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        input[type="color"] {
+            opacity: 0;
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .gradient-preview {
+            width: 100%;
+            height: 40px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Checkbox */
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-group:hover { background: var(--bg-input); }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            cursor: pointer;
+            user-select: none;
+            margin: 0;
+        }
+
+        /* Buttons */
+        .btn {
+            background: var(--gradient-primary);
+            color: white;
+            border: none;
+            padding: 11px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:active { transform: translateY(0); }
+
+        .btn-success { background: var(--gradient-success); }
+        .btn-danger { background: var(--gradient-danger); padding: 8px 14px; font-size: 13px; }
+        .btn-info { background: var(--gradient-info); }
+        .btn-warning { background: var(--gradient-warning); }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        /* Controls */
+        .item-controls, .data-input {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .item-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .item-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .data-row {
+            display: grid;
+            grid-template-columns: 1.5fr repeat(auto-fit, minmax(100px, 1fr)) auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        /* Save Buttons */
+        .save-buttons-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .save-buttons-container button {
+            padding: 16px 36px;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            letter-spacing: 0.5px;
+        }
+
+        .save-buttons-container button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Misc */
+        .help-text {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        .mode-info {
+            background: rgba(102, 126, 234, 0.2);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Xignal Attribution */
+        .xignal-attribution {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 11px;
+            color: #999;
+            text-align: right;
+            line-height: 1.3;
+            z-index: 5;
+        }
+
+        .xignal-attribution a {
+            color: #999;
+            text-decoration: none;
+        }
+
+        .xignal-attribution a:hover {
+            color: #ccc;
+        }
+
+        /* Language Selector */
+        .language-selector {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .language-selector select {
+            background: var(--bg-input);
+            color: white;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .language-selector select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        }
+
+        /* Privacy Policy */
+        .privacy-policy {
+            background: rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 30px;
+            font-size: 12px;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .privacy-policy h3 {
+            font-size: 14px;
+            margin-bottom: 15px;
+            color: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .privacy-policy ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .privacy-policy li {
+            margin-bottom: 8px;
+        }
+
+        .privacy-effective-date {
+            text-align: right;
+            margin-top: 15px;
+            font-style: italic;
+            color: rgba(255, 255, 255, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="chart-section">
+            <button class="toggle-controls btn" id="toggleBtn">
+                <span>⚙️</span>
+                <span id="toggle-btn-text">設定</span>
+            </button>
+            
+            <div class="chart-container" id="chartContainer">
+                <div class="xignal-attribution" id="xignalAttribution">
+                    <div id="created-by-text">作成: Xignalベンチマークグラフ</div>
+                    <a href="https://xignal-tech.com/benchmark" target="_blank">https://xignal-tech.com/benchmark</a>
+                </div>
+                <div class="chart-title" id="displayTitle">ベンチマーク比較チャート</div>
+                <div class="chart-subtitle" id="displaySubtitle">性能スコア比較</div>
+                <div class="legend" id="legendContainer"></div>
+                <div class="chart" id="chartData">
+                    <div class="chart-background" id="chartBackground"></div>
+                </div>
+            </div>
+            
+            <div class="save-buttons-container">
+                <button class="btn btn-success" data-action="save">
+                    <span>💾</span>
+                    <span id="save-btn-text">画像保存</span>
+                </button>
+            </div>
+
+            <div class="privacy-policy">
+                <h3>
+                    <span>🔒</span>
+                    <span id="privacy-title-text">プライバシーポリシー</span>
+                </h3>
+                <ul>
+                    <li id="privacy-local-text">本サイトは完全にローカルで動作し、利用者の入力内容を取得、保存することはありません。</li>
+                    <li id="privacy-free-text">個人、法人、商用、非商用問わず無料でご利用頂けます。ソースコード・画像の改変、著作表示も自由です。</li>
+                    <li id="privacy-prohibited-text">当ベンチマークグラフは以下の場合、ご利用をお断りします：</li>
+                    <ul>
+                        <li id="privacy-morals-text">公序良俗に反する目的での利用</li>
+                        <li id="privacy-content-text">宗教・政治・対立・攻撃的・差別的・性的・過激な利用。あくまで公平な比較を行うためのツールです。</li>
+                        <li id="privacy-illegal-text">反社会的勢力や違法行為に関わる利用</li>
+                        <li id="privacy-other-text">その他製作者が不適切と判断した場合すべて</li>
+                    </ul>
+                    <li id="privacy-changes-text">上記の規約は予告無く改変する場合があります。</li>
+                    <li id="privacy-language-text">各言語の規約に差異がある場合、日本語の規約が適用されます。</li>
+                    <li id="privacy-claude-text">当システムはClaude 4のアシストにより開発することができました。</li>
+                    <li id="privacy-github-text">以下のgithubでソースコードを配布しています：<a href="https://github.com/CubeEarthWorld/xignal-benchmark" target="_blank" style="color: #4facfe;">https://github.com/CubeEarthWorld/xignal-benchmark</a></li>
+                </ul>
+                <div class="privacy-effective-date">
+                    <span id="effective-date-text">適用開始日:</span> <span id="effectiveDate"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-section" id="controlsSection">
+            <div class="controls">
+                <div class="controls-header">
+                    <span style="font-size: 24px;">📊</span>
+                    <h2 id="chart-settings-text">チャート設定</h2>
+                    <div class="language-selector">
+                        <select id="languageSelect">
+                            <option value="ja">日本語</option>
+                            <option value="en">English</option>
+                            <option value="zh">中文(简体)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="tabs">
+                    <button class="tab active" data-tab="basic">
+                        <span>⚙️</span>
+                        <span id="tab-basic-text">基本設定</span>
+                    </button>
+                    <button class="tab" data-tab="items">
+                        <span>🎨</span>
+                        <span id="tab-items-text">項目設定</span>
+                    </button>
+                    <button class="tab" data-tab="data">
+                        <span>📝</span>
+                        <span id="tab-data-text">データ入力</span>
+                    </button>
+                </div>
+
+                <div id="basic-tab" class="tab-content active">
+                    <div class="card">
+                        <div class="card-title">
+                            <span>📋</span>
+                            <span id="title-settings-text">タイトル設定</span>
+                        </div>
+                        <div class="input-group">
+                            <label id="chart-title-label">チャートタイトル:</label>
+                            <input type="text" id="chartTitle" value="ベンチマーク比較チャート" data-update="chart">
+                        </div>
+                        <div class="input-group">
+                            <label id="chart-subtitle-label">サブタイトル:</label>
+                            <input type="text" id="chartSubtitle" value="性能スコア比較" data-update="chart">
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">
+                            <span>📏</span>
+                            <span id="scale-mode-text">スケールモード</span>
+                        </div>
+                        <div class="scale-mode-selector">
+                            <button class="scale-mode-btn active" data-scale="global">
+                                <span>🌍</span>
+                                <span id="global-scale-text">全体スケール</span>
+                            </button>
+                            <button class="scale-mode-btn" data-scale="individual">
+                                <span>📊</span>
+                                <span id="individual-scale-text">個別スケール</span>
+                            </button>
+                        </div>
+                        <div class="mode-info">
+                            <span>ℹ️</span>
+                            <span id="modeDescription">全体スケールモード: すべての値を全体の最大値を基準に表示します</span>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">
+                            <span>📐</span>
+                            <span id="display-settings-text">表示設定</span>
+                        </div>
+                        <div class="input-group">
+                            <label id="chart-height-label">グラフの高さ比率:</label>
+                            <select id="chartRatio" data-update="chart">
+                                <option value="0.6" id="height-compact-option">60% (コンパクト)</option>
+                                <option value="0.8" selected id="height-standard-option">80% (標準)</option>
+                                <option value="1.0" id="height-full-option">100% (フル)</option>
+                                <option value="1.2" id="height-large-option">120% (大きめ)</option>
+                            </select>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="showRatio" data-update="chart">
+                            <label for="showRatio" id="show-ratio-label">比率表示（×○.○）を表示</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="showPercent" data-update="chart">
+                            <label for="showPercent" id="show-percent-label">パーセント表示（個別スケール時）</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="showGridLines" checked data-update="chart">
+                            <label for="showGridLines" id="show-grid-label">縦線グリッドを表示</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="showXignalAttribution" checked data-update="chart">
+                            <label for="showXignalAttribution" id="show-attribution-label">Xignal表記を表示</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="saveWithoutBackground" data-update="none">
+                            <label for="saveWithoutBackground" id="save-without-bg-label">画像保存時に背景を除去</label>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">
+                            <span>🎨</span>
+                            <span id="background-gradient-text">背景グラデーション</span>
+                        </div>
+                        <div class="color-picker-group">
+                            <div class="color-picker-wrapper">
+                                <label id="center-color-label">中央色:</label>
+                                <div class="color-display" data-color="chartBgLeft">
+                                    <div class="color-preview" style="background: #2c2c2c;"></div>
+                                    <span class="color-value">#2c2c2c</span>
+                                </div>
+                                <input type="color" id="chartBgLeft" value="#2c2c2c" data-update="bg">
+                            </div>
+                            <div class="color-picker-wrapper">
+                                <label id="outer-color-label">外側色:</label>
+                                <div class="color-display" data-color="chartBgRight">
+                                    <div class="color-preview" style="background: #1a1a1a;"></div>
+                                    <span class="color-value">#1a1a1a</span>
+                                </div>
+                                <input type="color" id="chartBgRight" value="#1a1a1a" data-update="bg">
+                            </div>
+                        </div>
+                        <div class="gradient-preview" id="chartGradientPreview"></div>
+                        <p class="help-text" id="color-help-text">※ クリックして色を選択できます</p>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">
+                            <span>🔄</span>
+                            <span id="reset-function-text">リセット機能</span>
+                        </div>
+                        <button class="btn btn-warning" data-action="reset-colors" style="width: 100%;">
+                            <span>🔄</span>
+                            <span id="reset-colors-btn-text">項目の色をリセット</span>
+                        </button>
+                        <p class="help-text" id="reset-help-text">※ すべての項目の色をデフォルトに戻します</p>
+                    </div>
+                </div>
+
+                <div id="items-tab" class="tab-content">
+                    <div class="card">
+                        <div class="card-title">
+                            <span>📊</span>
+                            <span id="comparison-items-text">比較項目の設定</span>
+                        </div>
+                        <div id="itemsContainer"></div>
+                        <div class="button-group">
+                            <button class="btn btn-info" data-action="add-item">
+                                <span>➕</span>
+                                <span id="add-item-text">項目追加</span>
+                            </button>
+                        </div>
+                        <p class="help-text" id="items-help-text">※ 各項目の名前と色をカスタマイズできます</p>
+                    </div>
+                </div>
+
+                <div id="data-tab" class="tab-content">
+                    <div class="card">
+                        <div class="card-title">
+                            <span>📈</span>
+                            <span id="data-input-text">データ値の入力</span>
+                        </div>
+                        <div id="dataInputs"></div>
+                        <button class="btn btn-info" data-action="add-category">
+                            <span>➕</span>
+                            <span id="add-category-text">カテゴリ追加</span>
+                        </button>
+                        <p class="help-text" id="data-help-text">※ 各カテゴリに対する値を入力してください</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+// ======== 設定・定数 ========
+const CONFIG = {
+    GRADIENTS: [
+        ['#667eea','#764ba2'], ['#f093fb','#f5576c'], ['#4facfe','#00f2fe'],
+        ['#43e97b','#38f9d7'], ['#fa709a','#fee140'], ['#a8edea','#fed6e3'],
+        ['#ff9a9e','#fecfef'], ['#667eea','#764ba2']
+    ]
+};
+
+// ======== 多言語対応システム ========
+const TRANSLATIONS = {
+    ja: {
+        // UI要素
+        'toggle-btn-text': '設定',
+        'toggle-btn-hidden': '設定表示',
+        'chart-settings-text': 'チャート設定',
+        'tab-basic-text': '基本設定',
+        'tab-items-text': '項目設定',
+        'tab-data-text': 'データ入力',
+        
+        // タイトル設定
+        'title-settings-text': 'タイトル設定',
+        'chart-title-label': 'チャートタイトル:',
+        'chart-subtitle-label': 'サブタイトル:',
+        
+        // スケールモード
+        'scale-mode-text': 'スケールモード',
+        'global-scale-text': '全体スケール',
+        'individual-scale-text': '個別スケール',
+        'global-scale-desc': '全体スケールモード: すべての値を全体の最大値を基準に表示します',
+        'individual-scale-desc': '個別スケールモード: 各カテゴリの最大値を100%として表示します',
+        
+        // 表示設定
+        'display-settings-text': '表示設定',
+        'chart-height-label': 'グラフの高さ比率:',
+        'height-compact-option': '60% (コンパクト)',
+        'height-standard-option': '80% (標準)',
+        'height-full-option': '100% (フル)',
+        'height-large-option': '120% (大きめ)',
+        'show-ratio-label': '比率表示（×○.○）を表示',
+        'show-percent-label': 'パーセント表示（個別スケール時）',
+        'show-grid-label': '縦線グリッドを表示',
+        'show-attribution-label': 'Xignal表記を表示',
+        'save-without-bg-label': '画像保存時に背景を除去',
+        
+        // 背景グラデーション
+        'background-gradient-text': '背景グラデーション',
+        'center-color-label': '中央色:',
+        'outer-color-label': '外側色:',
+        'color-help-text': '※ クリックして色を選択できます',
+        
+        // リセット機能
+        'reset-function-text': 'リセット機能',
+        'reset-colors-btn-text': '項目の色をリセット',
+        'reset-help-text': '※ すべての項目の色をデフォルトに戻します',
+        
+        // 項目設定
+        'comparison-items-text': '比較項目の設定',
+        'add-item-text': '項目追加',
+        'items-help-text': '※ 各項目の名前と色をカスタマイズできます',
+        'item-name-label': '項目名',
+        'start-color-label': '開始色:',
+        'end-color-label': '終了色:',
+        
+        // データ入力
+        'data-input-text': 'データ値の入力',
+        'add-category-text': 'カテゴリ追加',
+        'data-help-text': '※ 各カテゴリに対する値を入力してください',
+        'category-name-label': 'カテゴリ名',
+        
+        // デフォルト値
+        'default-chart-title': 'ベンチマーク比較チャート',
+        'default-chart-subtitle': '性能スコア比較',
+        'default-item-name': '項目',
+        'default-category-name': 'カテゴリ',
+        
+        // ボタン
+        'save-btn-text': '画像保存',
+        'reset-complete': 'リセット完了',
+        
+        // Xignal Attribution
+        'created-by-text': '作成: Xignalベンチマークグラフ',
+        
+        // プライバシーポリシー
+        'privacy-title-text': 'プライバシーポリシー',
+        'privacy-local-text': '本サイトは完全にローカルで動作し、利用者の入力内容を取得、保存することはありません。',
+        'privacy-free-text': '個人、法人、商用、非商用問わず無料でご利用頂けます。ソースコード・画像の改変、著作表示も自由です。',
+        'privacy-prohibited-text': '当ベンチマークグラフは以下の場合、ご利用をお断りします：',
+        'privacy-morals-text': '公序良俗に反する目的での利用',
+        'privacy-content-text': '宗教・政治・対立・攻撃的・差別的・性的・過激な利用。あくまで公平な比較を行うためのツールです。',
+        'privacy-illegal-text': '反社会的勢力や違法行為に関わる利用',
+        'privacy-other-text': 'その他製作者が不適切と判断した場合すべて',
+        'privacy-changes-text': '上記の規約は予告無く改変する場合があります。',
+        'privacy-language-text': '各言語の規約に差異がある場合、日本語の規約が適用されます。',
+        'privacy-claude-text': '当システムはClaude 4のアシストにより開発することができました。',
+        'privacy-github-text': '以下のgithubでソースコードを配布しています：',
+        'effective-date-text': '適用開始日:'
+    },
+    en: {
+        // UI要素
+        'toggle-btn-text': 'Settings',
+        'toggle-btn-hidden': 'Show Settings',
+        'chart-settings-text': 'Chart Settings',
+        'tab-basic-text': 'Basic',
+        'tab-items-text': 'Items',
+        'tab-data-text': 'Data',
+        
+        // タイトル設定
+        'title-settings-text': 'Title Settings',
+        'chart-title-label': 'Chart Title:',
+        'chart-subtitle-label': 'Subtitle:',
+        
+        // スケールモード
+        'scale-mode-text': 'Scale Mode',
+        'global-scale-text': 'Global Scale',
+        'individual-scale-text': 'Individual Scale',
+        'global-scale-desc': 'Global Scale Mode: Display all values based on the overall maximum value',
+        'individual-scale-desc': 'Individual Scale Mode: Display each category with its maximum value as 100%',
+        
+        // 表示設定
+        'display-settings-text': 'Display Settings',
+        'chart-height-label': 'Chart Height Ratio:',
+        'height-compact-option': '60% (Compact)',
+        'height-standard-option': '80% (Standard)',
+        'height-full-option': '100% (Full)',
+        'height-large-option': '120% (Large)',
+        'show-ratio-label': 'Show ratio (×○.○)',
+        'show-percent-label': 'Show percentage (Individual scale)',
+        'show-grid-label': 'Show vertical grid lines',
+        'show-attribution-label': 'Show Xignal attribution',
+        'save-without-bg-label': 'Remove background when saving image',
+        
+        // 背景グラデーション
+        'background-gradient-text': 'Background Gradient',
+        'center-color-label': 'Center Color:',
+        'outer-color-label': 'Outer Color:',
+        'color-help-text': '※ Click to select colors',
+        
+        // リセット機能
+        'reset-function-text': 'Reset Function',
+        'reset-colors-btn-text': 'Reset Item Colors',
+        'reset-help-text': '※ Reset all item colors to default',
+        
+        // 項目設定
+        'comparison-items-text': 'Comparison Item Settings',
+        'add-item-text': 'Add Item',
+        'items-help-text': '※ Customize the name and color of each item',
+        'item-name-label': 'Item Name',
+        'start-color-label': 'Start Color:',
+        'end-color-label': 'End Color:',
+        
+        // データ入力
+        'data-input-text': 'Data Value Input',
+        'add-category-text': 'Add Category',
+        'data-help-text': '※ Enter values for each category',
+        'category-name-label': 'Category Name',
+        
+        // デフォルト値
+        'default-chart-title': 'Benchmark Comparison Chart',
+        'default-chart-subtitle': 'Performance Score Comparison',
+        'default-item-name': 'Item',
+        'default-category-name': 'Category',
+        
+        // ボタン
+        'save-btn-text': 'Save Image',
+        'reset-complete': 'Reset Complete',
+        
+        // Xignal Attribution
+        'created-by-text': 'Created by: Xignal Benchmark Graph',
+        
+        // プライバシーポリシー
+        'privacy-title-text': 'Privacy Policy',
+        'privacy-local-text': 'This site operates completely locally and does not collect or store any user input.',
+        'privacy-free-text': 'Free for use by individuals, corporations, commercial and non-commercial purposes. Source code and image modification, copyright notice are also free.',
+        'privacy-prohibited-text': 'Use of this benchmark graph is prohibited in the following cases:',
+        'privacy-morals-text': 'Use for purposes contrary to public order and morals',
+        'privacy-content-text': 'Religious, political, confrontational, aggressive, discriminatory, sexual, or extreme use. This is a tool for fair comparison only.',
+        'privacy-illegal-text': 'Use related to antisocial forces or illegal activities',
+        'privacy-other-text': 'All other cases deemed inappropriate by the creator',
+        'privacy-changes-text': 'The above terms may be changed without notice.',
+        'privacy-language-text': 'In case of differences between language versions of the terms, the Japanese version shall apply.',
+        'privacy-claude-text': 'This system was developed with the assistance of Claude 4.',
+        'privacy-github-text': 'Source code is distributed on the following GitHub:',
+        'effective-date-text': 'Effective Date:'
+    },
+    zh: {
+        // UI要素
+        'toggle-btn-text': '设置',
+        'toggle-btn-hidden': '显示设置',
+        'chart-settings-text': '图表设置',
+        'tab-basic-text': '基本设置',
+        'tab-items-text': '项目设置',
+        'tab-data-text': '数据输入',
+        
+        // タイトル設定
+        'title-settings-text': '标题设置',
+        'chart-title-label': '图表标题：',
+        'chart-subtitle-label': '副标题：',
+        
+        // スケールモード
+        'scale-mode-text': '缩放模式',
+        'global-scale-text': '全局缩放',
+        'individual-scale-text': '单独缩放',
+        'global-scale-desc': '全局缩放模式：基于整体最大值显示所有数值',
+        'individual-scale-desc': '单独缩放模式：将每个类别的最大值显示为100%',
+        
+        // 表示設定
+        'display-settings-text': '显示设置',
+        'chart-height-label': '图表高度比例：',
+        'height-compact-option': '60%（紧凑）',
+        'height-standard-option': '80%（标准）',
+        'height-full-option': '100%（完整）',
+        'height-large-option': '120%（大）',
+        'show-ratio-label': '显示比例（×○.○）',
+        'show-percent-label': '显示百分比（单独缩放时）',
+        'show-grid-label': '显示垂直网格线',
+        'show-attribution-label': '显示Xignal标识',
+        'save-without-bg-label': '保存图像时移除背景',
+        
+        // 背景グラデーション
+        'background-gradient-text': '背景渐变',
+        'center-color-label': '中心颜色：',
+        'outer-color-label': '外侧颜色：',
+        'color-help-text': '※ 点击选择颜色',
+        
+        // リセット機能
+        'reset-function-text': '重置功能',
+        'reset-colors-btn-text': '重置项目颜色',
+        'reset-help-text': '※ 将所有项目颜色重置为默认值',
+        
+        // 項目設定
+        'comparison-items-text': '比较项目设置',
+        'add-item-text': '添加项目',
+        'items-help-text': '※ 自定义每个项目的名称和颜色',
+        'item-name-label': '项目名称',
+        'start-color-label': '起始颜色：',
+        'end-color-label': '结束颜色：',
+        
+        // データ入力
+        'data-input-text': '数据值输入',
+        'add-category-text': '添加类别',
+        'data-help-text': '※ 为每个类别输入值',
+        'category-name-label': '类别名称',
+        
+        // デフォルト値
+        'default-chart-title': '基准比较图表',
+        'default-chart-subtitle': '性能分数比较',
+        'default-item-name': '项目',
+        'default-category-name': '类别',
+        
+        // ボタン
+        'save-btn-text': '保存图像',
+        'reset-complete': '重置完成',
+        
+        // Xignal Attribution
+        'created-by-text': '创建者：Xignal基准图表',
+        
+        // プライバシーポリシー
+        'privacy-title-text': '隐私政策',
+        'privacy-local-text': '本网站完全在本地运行，不会收集或存储用户输入内容。',
+        'privacy-free-text': '个人、法人、商业、非商业用途均可免费使用。源代码和图像修改、版权声明也是自由的。',
+        'privacy-prohibited-text': '以下情况禁止使用此基准图表：',
+        'privacy-morals-text': '用于违反公共秩序和道德的目的',
+        'privacy-content-text': '宗教、政治、对抗性、攻击性、歧视性、性或极端用途。这只是一个公平比较的工具。',
+        'privacy-illegal-text': '与反社会势力或非法活动相关的使用',
+        'privacy-other-text': '创建者认为不当的所有其他情况',
+        'privacy-changes-text': '上述条款可能会在不另行通知的情况下更改。',
+        'privacy-language-text': '如果各语言版本的条款存在差异，以日语版本为准。',
+        'privacy-claude-text': '该系统在Claude 4的协助下开发完成。',
+        'privacy-github-text': '源代码在以下GitHub上分发：',
+        'effective-date-text': '生效日期：'
+    }
+};
+
+let currentLanguage = 'ja';
+
+// ======== グローバル変数 ========
+let categories = [
+    { name:'カテゴリ1', values:[1000,2000] },
+    { name:'カテゴリ2', values:[1000,2000] },
+    { name:'カテゴリ3', values:[1000,2000] },
+    { name:'カテゴリ4', values:[1000,2000] }
+];
+let items = [
+    { name:'項目1', gradientStart:'#667eea', gradientEnd:'#764ba2' },
+    { name:'項目2', gradientStart:'#f093fb', gradientEnd:'#f5576c' }
+];
+let scaleMode = 'global';
+
+// ======== 多言語化関数 ========
+function t(key, lang = currentLanguage) {
+    return TRANSLATIONS[lang]?.[key] || TRANSLATIONS.ja[key] || key;
+}
+
+function updateLanguage(lang) {
+    currentLanguage = lang;
+    
+    // 固定要素の翻訳
+    document.getElementById('toggle-btn-text').textContent = t('toggle-btn-text');
+    document.getElementById('chart-settings-text').textContent = t('chart-settings-text');
+    document.getElementById('tab-basic-text').textContent = t('tab-basic-text');
+    document.getElementById('tab-items-text').textContent = t('tab-items-text');
+    document.getElementById('tab-data-text').textContent = t('tab-data-text');
+    
+    // タイトル設定
+    document.getElementById('title-settings-text').textContent = t('title-settings-text');
+    document.getElementById('chart-title-label').textContent = t('chart-title-label');
+    document.getElementById('chart-subtitle-label').textContent = t('chart-subtitle-label');
+    
+    // スケールモード
+    document.getElementById('scale-mode-text').textContent = t('scale-mode-text');
+    document.getElementById('global-scale-text').textContent = t('global-scale-text');
+    document.getElementById('individual-scale-text').textContent = t('individual-scale-text');
+    document.getElementById('modeDescription').textContent = t(scaleMode === 'global' ? 'global-scale-desc' : 'individual-scale-desc');
+    
+    // 表示設定
+    document.getElementById('display-settings-text').textContent = t('display-settings-text');
+    document.getElementById('chart-height-label').textContent = t('chart-height-label');
+    document.getElementById('height-compact-option').textContent = t('height-compact-option');
+    document.getElementById('height-standard-option').textContent = t('height-standard-option');
+    document.getElementById('height-full-option').textContent = t('height-full-option');
+    document.getElementById('height-large-option').textContent = t('height-large-option');
+    document.getElementById('show-ratio-label').textContent = t('show-ratio-label');
+    document.getElementById('show-percent-label').textContent = t('show-percent-label');
+    document.getElementById('show-grid-label').textContent = t('show-grid-label');
+    document.getElementById('show-attribution-label').textContent = t('show-attribution-label');
+    document.getElementById('save-without-bg-label').textContent = t('save-without-bg-label');
+    
+    // 背景グラデーション
+    document.getElementById('background-gradient-text').textContent = t('background-gradient-text');
+    document.getElementById('center-color-label').textContent = t('center-color-label');
+    document.getElementById('outer-color-label').textContent = t('outer-color-label');
+    document.getElementById('color-help-text').textContent = t('color-help-text');
+    
+    // リセット機能
+    document.getElementById('reset-function-text').textContent = t('reset-function-text');
+    document.getElementById('reset-colors-btn-text').textContent = t('reset-colors-btn-text');
+    document.getElementById('reset-help-text').textContent = t('reset-help-text');
+    
+    // 項目設定
+    document.getElementById('comparison-items-text').textContent = t('comparison-items-text');
+    document.getElementById('add-item-text').textContent = t('add-item-text');
+    document.getElementById('items-help-text').textContent = t('items-help-text');
+    
+    // データ入力
+    document.getElementById('data-input-text').textContent = t('data-input-text');
+    document.getElementById('add-category-text').textContent = t('add-category-text');
+    document.getElementById('data-help-text').textContent = t('data-help-text');
+    
+    // その他
+    document.getElementById('save-btn-text').textContent = t('save-btn-text');
+    document.getElementById('created-by-text').textContent = t('created-by-text');
+    
+    // プライバシーポリシー
+    document.getElementById('privacy-title-text').textContent = t('privacy-title-text');
+    document.getElementById('privacy-local-text').textContent = t('privacy-local-text');
+    document.getElementById('privacy-free-text').textContent = t('privacy-free-text');
+    document.getElementById('privacy-prohibited-text').textContent = t('privacy-prohibited-text');
+    document.getElementById('privacy-morals-text').textContent = t('privacy-morals-text');
+    document.getElementById('privacy-content-text').textContent = t('privacy-content-text');
+    document.getElementById('privacy-illegal-text').textContent = t('privacy-illegal-text');
+    document.getElementById('privacy-other-text').textContent = t('privacy-other-text');
+    document.getElementById('privacy-changes-text').textContent = t('privacy-changes-text');
+    document.getElementById('privacy-language-text').textContent = t('privacy-language-text');
+    document.getElementById('privacy-claude-text').textContent = t('privacy-claude-text');
+    document.getElementById('privacy-github-text').textContent = t('privacy-github-text');
+    document.getElementById('effective-date-text').textContent = t('effective-date-text');
+    
+    // デフォルト値の更新（タイトル・サブタイトル）
+    const titleInput = document.getElementById('chartTitle');
+    const subtitleInput = document.getElementById('chartSubtitle');
+    
+    if (isDefaultValue(titleInput.value, 'default-chart-title')) {
+        titleInput.value = t('default-chart-title');
+    }
+    
+    if (isDefaultValue(subtitleInput.value, 'default-chart-subtitle')) {
+        subtitleInput.value = t('default-chart-subtitle');
+    }
+    
+    // 項目名の更新
+    items.forEach((item, idx) => {
+        if (isDefaultItemName(item.name, idx + 1)) {
+            item.name = `${t('default-item-name')}${idx + 1}`;
+        }
+    });
+    
+    // カテゴリ名の更新
+    categories.forEach((category, idx) => {
+        if (isDefaultCategoryName(category.name, idx + 1)) {
+            category.name = `${t('default-category-name')}${idx + 1}`;
+        }
+    });
+    
+    // 動的コンテンツの再レンダリング
+    renderItems();
+    renderDataInputs();
+    updateChart();
+}
+
+// デフォルト値判定のヘルパー関数
+function isDefaultValue(value, translationKey) {
+    return Object.values(TRANSLATIONS).some(translation => 
+        translation[translationKey] === value
+    );
+}
+
+function isDefaultItemName(name, number) {
+    return Object.values(TRANSLATIONS).some(translation => 
+        translation['default-item-name'] + number === name
+    );
+}
+
+function isDefaultCategoryName(name, number) {
+    return Object.values(TRANSLATIONS).some(translation => 
+        translation['default-category-name'] + number === name
+    );
+}
+
+// ======== ユーティリティ ========
+const $ = (sel, ctx=document) => ctx.querySelector(sel);
+const $$ = (sel, ctx=document) => [...ctx.querySelectorAll(sel)];
+const createEl = (tag, props={}) => Object.assign(document.createElement(tag), props);
+const getAllValues = () => categories.flatMap(c => c.values);
+const getMaxValue = () => Math.max(...getAllValues());
+
+// ======== UI生成ヘルパー ========
+const html = {
+    colorPicker: (id, start, end, idx) => `
+        <div class="color-picker-wrapper">
+            <label>${start ? t('start-color-label') : t('end-color-label')}</label>
+            <div class="color-display" data-color="item${start?'Start':'End'}${idx}">
+                <div class="color-preview" style="background:${start||end};width:30px;height:30px;"></div>
+                <span class="color-value" style="font-size:12px;">${start||end}</span>
+            </div>
+            <input type="color" id="item${start?'Start':'End'}${idx}" 
+                value="${start||end}" data-item="${idx}" 
+                data-field="gradient${start?'Start':'End'}">
+        </div>`,
+    
+    inputGroup: (label, value, onChange, type='text') => `
+        <div class="input-group" style="margin:0;">
+            <label>${label}:</label>
+            <input type="${type}" value="${value}" onchange="${onChange}">
+        </div>`,
+    
+    legendItem: (item) => `
+        <div class="legend-item">
+            <div class="legend-color" style="background:linear-gradient(to right,${item.gradientStart},${item.gradientEnd})"></div>
+            <span>${item.name}</span>
+        </div>`
+};
+
+// ======== チャート更新 ========
+function updateChart() {
+    $('#displayTitle').textContent = $('#chartTitle').value;
+    $('#displaySubtitle').textContent = $('#chartSubtitle').value;
+    
+    // Xignal表記の表示/非表示
+    const attribution = $('#xignalAttribution');
+    attribution.style.display = $('#showXignalAttribution').checked ? 'block' : 'none';
+    
+    // 背景更新
+    const center = $('#chartBgLeft').value;
+    const outer = $('#chartBgRight').value;
+    const bgGradient = `radial-gradient(circle at center, ${center}, ${outer})`;
+    $('#chartContainer').style.background = bgGradient;
+    $('#chartGradientPreview').style.background = bgGradient;
+    
+    // レジェンド更新
+    $('#legendContainer').innerHTML = items.map(html.legendItem).join('');
+    
+    // グリッド更新
+    $('#chartBackground').innerHTML = buildGridLines();
+    
+    // チャート行更新
+    const chart = $('#chartData');
+    $$('.chart-row', chart).forEach(e => e.remove());
+    categories.forEach(cat => chart.appendChild(buildChartRow(cat)));
+}
+
+function buildGridLines() {
+    if (!$('#showGridLines').checked) return '';
+    
+    if (scaleMode === 'individual') {
+        return [25, 50, 75, 100].map(pct => 
+            `<div class="grid-line" style="left:calc(140px + ${pct}%)">
+                <div class="grid-label">${pct}%</div>
+            </div>`
+        ).join('');
+    }
+    
+    const maxValue = getMaxValue();
+    const magnitude = Math.pow(10, Math.floor(Math.log10(maxValue)));
+    const ratio = maxValue / magnitude;
+    const step = ratio <= 2 ? magnitude/4 : ratio <= 5 ? magnitude/2 : magnitude;
+    
+    let html = '';
+    for (let v = step; v < maxValue; v += step) {
+        const pct = (v/maxValue) * 100;
+        const label = v >= 1000 ? Math.round(v/1000) + 'k' : Math.round(v);
+        html += `<div class="grid-line" style="left:calc(140px + ${pct}%)">
+            <div class="grid-label">${label}</div>
+        </div>`;
+    }
+    return html;
+}
+
+function buildChartRow(category) {
+    const row = createEl('div', {className: 'chart-row'});
+    row.innerHTML = `<div class="chart-label">${category.name}</div>`;
+    
+    const bars = createEl('div', {className: 'chart-bars'});
+    const maxCat = Math.max(...category.values);
+    const minIdx = category.values.indexOf(Math.min(...category.values));
+    const ratio = category.values.length >= 2 && category.values[minIdx] > 0 
+        ? (maxCat / category.values[minIdx]).toFixed(1) : null;
+    
+    const scaleRatio = parseFloat($('#chartRatio').value);
+    const maxScale = scaleMode === 'individual' ? maxCat : getMaxValue();
+    
+    category.values.forEach((val, i) => {
+        const item = items[i];
+        const width = (val / maxScale) * 100 * scaleRatio;
+        const bar = createEl('div', {className: 'chart-bar'});
+        
+        bar.style.cssText = `width:${width}%;background:linear-gradient(to right,${item.gradientStart},${item.gradientEnd})`;
+        bar.innerHTML = `<div class="bar-value">${val.toLocaleString()}</div>`;
+        
+        if (scaleMode === 'individual' && $('#showPercent').checked) {
+            bar.innerHTML = `<div class="percent-indicator">${((val/maxCat)*100).toFixed(1)}%</div>` + bar.innerHTML;
+        }
+        
+        if ($('#showRatio').checked && i === minIdx && ratio) {
+            bar.innerHTML += `<div class="ratio-indicator">×${ratio}</div>`;
+        }
+        
+        bars.appendChild(bar);
+    });
+    
+    row.appendChild(bars);
+    return row;
+}
+
+// ======== 項目管理 ========
+function renderItems() {
+    $('#itemsContainer').innerHTML = items.map((item, idx) => `
+        <div class="item-controls">
+            <div class="item-header">
+                <span style="font-size:16px;">🏷️</span>
+                <span>${t('default-item-name')} ${idx + 1}</span>
+            </div>
+            <div class="item-row">
+                ${html.inputGroup(t('item-name-label'), item.name, `app.updateItem(${idx},'name',this.value)`)}
+                ${html.colorPicker(null, item.gradientStart, null, idx)}
+                ${html.colorPicker(null, null, item.gradientEnd, idx)}
+                ${items.length > 2 ? `<button class="btn btn-danger" data-action="remove-item" data-idx="${idx}"><span>🗑️</span></button>` : '<div></div>'}
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderDataInputs() {
+    $('#dataInputs').innerHTML = categories.map((cat, cIdx) => `
+        <div class="data-input">
+            <div class="data-row">
+                ${html.inputGroup(t('category-name-label'), cat.name, `app.updateCategory(${cIdx},'name',this.value)`)}
+                ${items.map((item, iIdx) => 
+                    html.inputGroup(item.name, cat.values[iIdx] || 0, 
+                        `app.updateCategoryValue(${cIdx},${iIdx},this.value)`, 'number')
+                ).join('')}
+                <button class="btn btn-danger" data-action="remove-category" data-idx="${cIdx}"><span>🗑️</span></button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ======== アクション関数 ========
+const app = {
+    updateItem: (i, field, val) => {
+        items[i][field] = val;
+        updateChart();
+        if (field === 'name') {
+            renderDataInputs();
+        }
+    },
+    updateCategory: (i, field, val) => {
+        categories[i][field] = val;
+        updateChart();
+    },
+    updateCategoryValue: (c, i, val) => {
+        categories[c].values[i] = parseInt(val) || 0;
+        updateChart();
+    },
+    addItem: () => {
+        const g = CONFIG.GRADIENTS[items.length % CONFIG.GRADIENTS.length];
+        items.push({
+            name: `${t('default-item-name')}${items.length + 1}`,
+            gradientStart: g[0],
+            gradientEnd: g[1]
+        });
+        categories.forEach(c => c.values.push(1000));
+        renderItems();
+        renderDataInputs();
+        updateChart();
+    },
+    removeItem: (idx) => {
+        if (items.length <= 2) return;
+        items.splice(idx, 1);
+        categories.forEach(c => c.values.splice(idx, 1));
+        renderItems();
+        renderDataInputs();
+        updateChart();
+    },
+    addCategory: () => {
+        categories.push({
+            name: `${t('default-category-name')}${categories.length + 1}`,
+            values: new Array(items.length).fill(1000)
+        });
+        renderDataInputs();
+        updateChart();
+    },
+    removeCategory: (idx) => {
+        categories.splice(idx, 1);
+        renderDataInputs();
+        updateChart();
+    },
+    resetColors: (btn) => {
+        items = items.map((item, i) => {
+            const g = CONFIG.GRADIENTS[i % CONFIG.GRADIENTS.length];
+            return {
+                name: `${t('default-item-name')}${i + 1}`, 
+                gradientStart: g[0], 
+                gradientEnd: g[1]
+            };
+        });
+        renderItems();
+        renderDataInputs();
+        updateChart();
+        
+        const orig = btn.innerHTML;
+        btn.innerHTML = `<span>✓</span><span>${t('reset-complete')}</span>`;
+        btn.className = 'btn btn-success';
+        setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.className = 'btn btn-warning';
+        }, 1500);
+    },
+    async saveChart() {
+        const withoutBg = $('#saveWithoutBackground').checked;
+        try {
+            const el = $('#chartContainer');
+            let origBg;
+            if (withoutBg) {
+                origBg = el.style.background;
+                el.style.background = 'transparent';
+            }
+            const canvas = await html2canvas(el, {
+                backgroundColor: null,
+                scale: 2,
+                logging: false,
+                useCORS: true
+            });
+            if (withoutBg) el.style.background = origBg;
+            
+            const a = createEl('a');
+            a.download = withoutBg ? 'comparison-chart-transparent.png' : 'comparison-chart.png';
+            a.href = canvas.toDataURL();
+            a.click();
+        } catch (e) {
+            console.error('保存失敗:', e);
+            alert('画像保存に失敗しました。');
+        }
+    }
+};
+
+// レガシーAPI互換
+window.updateItem = app.updateItem;
+window.updateCategory = app.updateCategory;
+window.updateCategoryValue = app.updateCategoryValue;
+window.toggleControls = () => {
+    const controls = $('#controlsSection');
+    const btn = $('#toggleBtn');
+    const btnText = $('#toggle-btn-text');
+    controls.classList.toggle('hidden');
+    btnText.textContent = controls.classList.contains('hidden') ? t('toggle-btn-hidden') : t('toggle-btn-text');
+};
+
+// ======== イベント処理 ========
+document.addEventListener('DOMContentLoaded', () => {
+    const today = new Date();
+    document.getElementById('effectiveDate').textContent = today.toLocaleDateString('ja-JP');
+    
+    // 初期データの言語対応
+    document.getElementById('chartTitle').value = t('default-chart-title');
+    document.getElementById('chartSubtitle').value = t('default-chart-subtitle');
+    
+    // 初期項目名の設定
+    items.forEach((item, idx) => {
+        item.name = `${t('default-item-name')}${idx + 1}`;
+    });
+    
+    // 初期カテゴリ名の設定
+    categories.forEach((category, idx) => {
+        category.name = `${t('default-category-name')}${idx + 1}`;
+    });
+    
+    renderItems();
+    renderDataInputs();
+    updateChart();
+    
+    document.getElementById('languageSelect').addEventListener('change', (e) => {
+        updateLanguage(e.target.value);
+    });
+    
+    document.getElementById('toggleBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleControls();
+    });
+    
+    document.addEventListener('click', e => {
+        const target = e.target.closest('[data-action]');
+        if (!target) return;
+        
+        const action = target.dataset.action;
+        const idx = parseInt(target.dataset.idx);
+        
+        switch(action) {
+            case 'save': app.saveChart(); break;
+            case 'add-item': app.addItem(); break;
+            case 'remove-item': app.removeItem(idx); break;
+            case 'add-category': app.addCategory(); break;
+            case 'remove-category': app.removeCategory(idx); break;
+            case 'reset-colors': app.resetColors(target); break;
+        }
+    });
+    
+    $$('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            $$('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            $$('.tab-content').forEach(c => c.classList.remove('active'));
+            $(`#${tab.dataset.tab}-tab`).classList.add('active');
+        });
+    });
+    
+    $$('.scale-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            scaleMode = btn.dataset.scale;
+            $$('.scale-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+            $('#modeDescription').textContent = t(scaleMode === 'global' ? 'global-scale-desc' : 'individual-scale-desc');
+            updateChart();
+        });
+    });
+    
+    document.addEventListener('click', e => {
+        const display = e.target.closest('.color-display');
+        if (display) {
+            const inputId = display.dataset.color;
+            $(`#${inputId}`).click();
+        }
+    });
+    
+    $$('.checkbox-group').forEach(group => {
+        group.addEventListener('click', e => {
+            if (e.target.type !== 'checkbox') {
+                const checkbox = group.querySelector('input[type="checkbox"]');
+                checkbox.checked = !checkbox.checked;
+                if (checkbox.dataset.update === 'chart') updateChart();
+            }
+        });
+    });
+    
+    document.addEventListener('input', e => {
+        const target = e.target;
+        if (target.dataset.update === 'chart') {
+            updateChart();
+        } else if (target.dataset.update === 'bg') {
+            const preview = target.previousElementSibling.querySelector('.color-preview');
+            const value = target.previousElementSibling.querySelector('.color-value');
+            if (preview) preview.style.background = target.value;
+            if (value) value.textContent = target.value;
+            updateChart();
+        } else if (target.dataset.item !== undefined) {
+            const idx = parseInt(target.dataset.item);
+            const field = target.dataset.field;
+            const preview = target.previousElementSibling.querySelector('.color-preview');
+            const value = target.previousElementSibling.querySelector('.color-value');
+            if (preview) preview.style.background = target.value;
+            if (value) value.textContent = target.value;
+            app.updateItem(idx, field, target.value);
+        }
+    });
+});
+    </script>
+</body>
+</html>
